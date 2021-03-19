@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Pinpoint Two Way SMS
+
+Resources:
+  PinpointProject:
+    Type: AWS::Pinpoint::App
+    Properties: 
+      Name: BlogApplication
+  PinpointSMSChannel:
+    Type: AWS::Pinpoint::SMSChannel
+    Properties: 
+      ApplicationId: !Ref PinpointProject
+      Enabled: true
+  FeedbackReqSender:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs14.x
+      CodeUri: feedbackreqsender/
+      Handler: index.handler
+      Role: !GetAtt BlogFunctionIAMRole.Arn
+      AutoPublishAlias: "live"
+      Events:
+        Stream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt BlogAppointmentsTable.StreamArn
+            BatchSize: 100
+            StartingPosition: TRIM_HORIZON
+      Environment:
+        Variables:
+          APPLICATION_ID: !Ref PinpointProject
+  FeedbackReceiver:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - BlogSqsQueue
+    Properties:
+      Runtime: nodejs14.x
+      CodeUri: feedbackreceiver/
+      Handler: index.handler
+      Role: !GetAtt BlogFunctionIAMRole.Arn
+      AutoPublishAlias: "live"
+      Events:
+        MySQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt BlogSqsQueue.Arn
+            BatchSize: 10
+            Enabled: true
+      Environment:
+        Variables:
+          APPLICATION_ID: !Ref PinpointProject
+
+  BlogFeedbacksTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: AppointmentId
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: feedbacks
+  MessageLookupTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: FeedbackMessageId
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: message-lookup
+  BlogAppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: id
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      TableName: appointments
+  BlogSqsQueue:
+    Type: AWS::SQS::Queue
+  BlogSqsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref BlogSqsQueue
+      PolicyDocument:
+        Statement:
+          Effect: Allow
+          Principal: "*"
+          Action: "sqs:*"
+          Resource: "*"
+          Condition:
+            ArnEquals:
+              "aws:SourceArn": !Ref BlogSnsTopic
+  BlogSnsTopic:
+      Type: AWS::SNS::Topic
+  BlogSqsToSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BlogSqsQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref BlogSnsTopic
+  BlogFunctionIAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: BlogPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: PinpointAccess
+                Effect: Allow
+                Action: 'mobiletargeting:SendMessages'
+                Resource: '*'
+              - Sid: CloudwatchLogsAccess
+                Effect: Allow
+                Action: 'logs:*'
+                Resource: '*'
+              - Sid: SQSAccess
+                Effect: Allow
+                Action: 'sqs:*'
+                Resource: '*'
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action: 'dynamodb:*'
+                Resource: '*'
