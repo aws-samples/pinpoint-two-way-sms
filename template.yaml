@@ -89,6 +89,32 @@ Resources:
       TableName: appointments
   BlogSqsQueue:
     Type: AWS::SQS::Queue
+    Properties: 
+      KmsMasterKeyId: !Ref BlogKmsKey
+  BlogKmsKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Blog KMS Key
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action: kms:*
+          Resource: "*"
+          Principal:
+            AWS: !Join [ "", [ "arn:aws:iam::", !Ref "AWS::AccountId", ":root" ] ]
+        - Effect: Allow
+          Action: kms:*
+          Resource: "*"
+          Principal:
+            Service: 'sns.amazonaws.com'
+        - Effect: Allow
+          Action: kms:*
+          Resource: "*"
+          Principal:
+            Service: 'sms-voice.amazonaws.com'
+
   BlogSqsQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -105,6 +131,8 @@ Resources:
               "aws:SourceArn": !Ref BlogSnsTopic
   BlogSnsTopic:
       Type: AWS::SNS::Topic
+      Properties: 
+        KmsMasterKeyId: !Ref BlogKmsKey
   BlogSqsToSnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -145,4 +173,8 @@ Resources:
               - Sid: DynamoDBAccess
                 Effect: Allow
                 Action: 'dynamodb:*'
+                Resource: '*'
+              - Sid: KmsAccess
+                Effect: Allow
+                Action: 'kms:Decrypt'
                 Resource: '*'
