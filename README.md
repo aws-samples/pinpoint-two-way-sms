@@ -1,6 +1,6 @@
 ## Create a Serverless Feedback Collector Application by Using Amazon Pinpoint’s Two-way SMS Functionality
 
-Create a Serverless Feedback Collector Application by Using Amazon Pinpoint’s Two-way SMS Functionality. Please refer to the accompanying AWS Blog post for architecture details.
+Create a Serverless Feedback Collector Application by Using Amazon Pinpoint’s Two-way SMS Functionality. Please refer to the accompanying [AWS Blog post](https://aws.amazon.com/blogs/messaging-and-targeting/create-a-serverless-feedback-collector-application-by-using-amazon-pinpoints-two-way-sms-functionality/) for architecture details.
 
 ## License Summary
 This library is licensed under the MIT-0 License. See the LICENSE file.
